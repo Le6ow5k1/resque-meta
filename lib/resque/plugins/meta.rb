@@ -79,22 +79,35 @@ module Resque
         meta
       end
 
-      # Retrieve the metadata for a given job.  If you call this
+      # Retrieve the metadata for a given job or jobs.  If you call this
       # from a class that extends Meta, then the metadata will
       # only be returned if the metadata for that id is for the
       # same class.  Explicitly, calling Meta.get_meta(some_id)
       # will return the metadata for a job of any type.
+      # Accepts single meta_id or an array of ids, in this case it returns
+      # an array of meta information.
       def get_meta(meta_id)
-        key = "meta:#{meta_id}"
-        if json = Resque.redis.get(key)
-          data = Resque.decode(json)
-          if self == Meta || self.to_s == data['job_class']
-            Metadata.new(data)
+        if meta_id.respond_to?(:map)
+          keys = meta_id.map { |id| "meta:#{id}" }
+          Resque.redis.mget(*keys) do |values|
+            values.map { |value| build_metadata(Resque.decode(value)) }
           end
+        else
+          json = Resque.redis.get("meta:#{meta_id}")
+          build_metadata(Resque.decode(json))
         end
       end
       module_function :get_meta
       public :get_meta
+
+      def build_metadata(data)
+        return unless data
+
+        if self == Meta || self.to_s == data['job_class']
+          Metadata.new(data)
+        end
+      end
+      module_function :build_metadata
 
       def before_perform_meta(meta_id, *args)
         if meta = get_meta(meta_id)

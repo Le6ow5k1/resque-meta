@@ -188,4 +188,17 @@ class MetaTest < Test::Unit::TestCase
     meta = MetaJob.get_meta(meta.meta_id)
     assert_equal 'bar', meta['foo']
   end
+
+  def test_get_meta_for_multiple_jobs
+    meta1 = MetaJob.enqueue('stuff1')
+    meta2 = MetaJob.enqueue('stuff2')
+    meta1['foo'] = 'bar1'
+    meta2['foo'] = 'bar2'
+    meta1.save
+    meta2.save
+
+    meta_array = Resque::Plugins::Meta.get_meta([meta1.meta_id, meta2.meta_id])
+    assert_equal 'bar1', meta_array[0]['foo']
+    assert_equal 'bar2', meta_array[1]['foo']
+  end
 end
